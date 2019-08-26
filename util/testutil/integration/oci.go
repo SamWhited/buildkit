@@ -20,8 +20,22 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// InitOCIWorker creates OCI workers and registers them globally.
+// For more information see NewOCIWorkers.
+//
+// This function is deprecated.
 func InitOCIWorker() {
-	Register(&oci{})
+	workers := NewOCIWorkers()
+	for _, w := range workers {
+		Register(w)
+	}
+}
+
+// NewOCIWorkers creates a default OCI worker and attempts to create a worker
+// from the "uid:gid" pair found in the environment variable
+// BUILDKIT_INTEGRATION_ROOTLESS_IDPAIR.
+func NewOCIWorkers() []Worker {
+	w := []Worker{&oci{}}
 
 	// the rootless uid is defined in hack/dockerfiles/test.Dockerfile
 	if s := os.Getenv("BUILDKIT_INTEGRATION_ROOTLESS_IDPAIR"); s != "" {
@@ -30,10 +44,11 @@ func InitOCIWorker() {
 			logrus.Fatalf("unexpected BUILDKIT_INTEGRATION_ROOTLESS_IDPAIR: %q", s)
 		}
 		if rootlessSupported(uid) {
-			Register(&oci{uid: uid, gid: gid})
+			w = append(w, &oci{uid: uid, gid: gid})
 		}
 	}
 
+	return w
 }
 
 type oci struct {

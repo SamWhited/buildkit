@@ -14,14 +14,32 @@ import (
 	"github.com/pkg/errors"
 )
 
+// InitContainerdWorker creates workers and registers them globally.
+// For more information see NewContainerdWorkers.
+//
+// This function is deprecated.
 func InitContainerdWorker() {
-	Register(&containerd{
+	workers := NewContainerdWorkers()
+	for _, w := range workers {
+		Register(w)
+	}
+}
+
+// NewContainerdWorkers creates a default containerd worker and then scans the
+// environment variable BUILDKIT_INTEGRATION_CONTAINERD_EXTRA to create further
+// workers.
+//
+// The environment variable is defined in hack/dockerfiles/test.Dockerfile and
+// comprises a comma separated list of keys to containerd binaries, for example:
+//
+//     BUILDKIT_INTEGRATION_CONTAINERD_EXTRA= \
+//         "containerd-1.1=/opt/containerd-1.1/bin,containerd-42.0=/opt/containerd-42.0/bin"
+func NewContainerdWorkers() []Worker {
+	w := []Worker{&containerd{
 		name:           "containerd",
 		containerd:     "containerd",
 		containerdShim: "containerd-shim",
-	})
-	// defined in hack/dockerfiles/test.Dockerfile.
-	// e.g. `containerd-1.1=/opt/containerd-1.1/bin,containerd-42.0=/opt/containerd-42.0/bin`
+	}}
 	if s := os.Getenv("BUILDKIT_INTEGRATION_CONTAINERD_EXTRA"); s != "" {
 		entries := strings.Split(s, ",")
 		for _, entry := range entries {
@@ -30,13 +48,14 @@ func InitContainerdWorker() {
 				panic(errors.Errorf("unexpected BUILDKIT_INTEGRATION_CONTAINERD_EXTRA: %q", s))
 			}
 			name, bin := pair[0], pair[1]
-			Register(&containerd{
+			w = append(w, &containerd{
 				name:           name,
 				containerd:     filepath.Join(bin, "containerd"),
 				containerdShim: filepath.Join(bin, "containerd-shim"),
 			})
 		}
 	}
+	return w
 }
 
 type containerd struct {

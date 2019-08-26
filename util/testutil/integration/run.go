@@ -74,12 +74,11 @@ type Test func(*testing.T, Sandbox)
 
 var defaultWorkers []Worker
 
+// Register adds a worker to the list of default workers.
+//
+// This method is deprecated, instead use the test option Workers.
 func Register(w Worker) {
 	defaultWorkers = append(defaultWorkers, w)
-}
-
-func List() []Worker {
-	return defaultWorkers
 }
 
 // TestOpt is an option that can be used to configure a set of integration
@@ -106,9 +105,17 @@ func WithMirroredImages(m map[string]string) TestOpt {
 	}
 }
 
+// Workers configures a test to use the provided workers.
+func Workers(w ...Worker) TestOpt {
+	return func(tc *testConf) {
+		tc.workers = w
+	}
+}
+
 type testConf struct {
 	matrix         map[string]map[string]interface{}
 	mirroredImages map[string]string
+	workers        []Worker
 }
 
 func Run(t *testing.T, testCases []Test, opt ...TestOpt) {
@@ -145,7 +152,10 @@ func Run(t *testing.T, testCases []Test, opt ...TestOpt) {
 
 	matrix := prepareValueMatrix(tc)
 
-	list := List()
+	list := tc.workers
+	if len(list) == 0 {
+		list = defaultWorkers
+	}
 	if os.Getenv("BUILDKIT_WORKER_RANDOM") == "1" && len(list) > 0 {
 		rand.Seed(time.Now().UnixNano())
 		list = []Worker{list[rand.Intn(len(list))]}
